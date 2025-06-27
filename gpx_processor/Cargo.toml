@@ -8,9 +8,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 gpx = "0.10"
-wasm-bindgen = "0.2"
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+js-sys = "0.3"
+serde-wasm-bindgen = "0.6"
 
 [dependencies.web-sys]
 version = "0.3"

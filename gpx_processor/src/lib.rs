@@ -13,7 +13,7 @@ struct Segment {
 
 #[wasm_bindgen]
 pub fn process_gpx_files(files: js_sys::Array) -> JsValue {
-    let mut segment_counts: HashMap<([f64; 2], [f64; 2]), u32> = HashMap::new();
+    let mut segment_counts: HashMap<(String, String), u32> = HashMap::new();
 
     for file_bytes in files.iter() {
         let array = js_sys::Uint8Array::new(&file_bytes);
@@ -23,12 +23,14 @@ pub fn process_gpx_files(files: js_sys::Array) -> JsValue {
             for track in gpx.tracks {
                 for segment in track.segments {
                     let points: Vec<[f64; 2]> = segment.points.iter()
-                        .map(|p| [round(p.point().lat()), round(p.point().lon())])
+                        .map(|p| [round(p.point().y()), round(p.point().x())])
                         .collect();
 
                     for w in points.windows(2) {
                         if let [a, b] = w {
-                            let key = if a < b { (*a, *b) } else { (*b, *a) };
+                            let key_a = format!("{},{}", a[0], a[1]);
+                            let key_b = format!("{},{}", b[0], b[1]);
+                            let key = if key_a < key_b { (key_a, key_b) } else { (key_b, key_a) };
                             *segment_counts.entry(key).or_insert(0) += 1;
                         }
                     }
@@ -37,13 +39,17 @@ pub fn process_gpx_files(files: js_sys::Array) -> JsValue {
         }
     }
 
-    let segments: Vec<Segment> = segment_counts.into_iter().map(|((a, b), c)| Segment {
-        start: a,
-        end: b,
-        count: c,
+    let segments: Vec<Segment> = segment_counts.into_iter().map(|((a, b), c)| {
+        let start_coords: Vec<f64> = a.split(',').map(|s| s.parse().unwrap()).collect();
+        let end_coords: Vec<f64> = b.split(',').map(|s| s.parse().unwrap()).collect();
+        Segment {
+            start: [start_coords[0], start_coords[1]],
+            end: [end_coords[0], end_coords[1]],
+            count: c,
+        }
     }).collect();
 
-    JsValue::from_serde(&segments).unwrap()
+    serde_wasm_bindgen::to_value(&segments).unwrap()
 }
 
 fn round(x: f64) -> f64 {
