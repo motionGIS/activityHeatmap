@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      gpx_processor:
-        specifier: file:..\gpx_processor\pkg
-        version: file:../gpx_processor/pkg
+      '@motiongis/heatmap-parse':
+        specifier: ^0.1.0
+        version: 0.1.0
       maplibre-gl:
         specifier: ^5.6.0
         version: 5.6.0
@@ -573,6 +573,9 @@ packages:
     resolution: {integrity: sha512-IGJtuBbaGzOUgODdBRg66p8stnwj9iDXkgbYKoYcNiiQmaez5WVRfXm4b03MCDwmZyX93csbfHFWEJJYHnn5oA==}
     hasBin: true
 
+  '@motiongis/heatmap-parse@0.1.0':
+    resolution: {integrity: sha512-A4eHiNvEXTiDVOqwO0uxUmPvTnl9/GB7BZgOyn2+TklhAqu2YkR9NXs0HvRg4dAGodgL/GG2U9guRo0V4sUhuw==}
+
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
@@ -975,9 +978,6 @@ packages:
   global-prefix@4.0.0:
     resolution: {integrity: sha512-w0Uf9Y9/nyHinEk5vMJKRie+wa4kR5hmDbEhGGds/kG1PwGLLHKRoNMeJOyCQjjBkANlnScqgzcFwGHgmgLkVA==}
     engines: {node: '>=16'}
-
-  gpx_processor@file:../gpx_processor/pkg:
-    resolution: {directory: ../gpx_processor/pkg, type: directory}
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -1779,6 +1779,8 @@ snapshots:
       rw: 1.3.3
       tinyqueue: 3.0.0
 
+  '@motiongis/heatmap-parse@0.1.0': {}
+
   '@polka/url@1.0.0-next.29': {}
 
   '@rollup/rollup-android-arm-eabi@4.44.1':
@@ -2144,8 +2146,6 @@ snapshots:
       ini: 4.1.3
       kind-of: 6.0.3
       which: 4.0.0
-
-  gpx_processor@file:../gpx_processor/pkg: {}
 
   graceful-fs@4.2.11: {}
 
