@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"gpx_processor": "file:pkg"
+	}
+}

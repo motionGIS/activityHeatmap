@@ -31,5 +31,9 @@
 		"onlyBuiltDependencies": [
 			"esbuild"
 		]
+	},
+	"dependencies": {
+		"gpx_processor": "file:..\\gpx_processor\\pkg",
+		"maplibre-gl": "^5.6.0"
 	}
 }

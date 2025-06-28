@@ -1,0 +1,15 @@
+{
+  "name": "gpx_processor",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "gpx_processor_bg.wasm",
+    "gpx_processor.js",
+    "gpx_processor.d.ts"
+  ],
+  "main": "gpx_processor.js",
+  "types": "gpx_processor.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

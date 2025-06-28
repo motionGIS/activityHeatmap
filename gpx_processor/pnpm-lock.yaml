@@ -1,0 +1,22 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      gpx_processor:
+        specifier: file:pkg
+        version: file:pkg
+
+packages:
+
+  gpx_processor@file:pkg:
+    resolution: {directory: pkg, type: directory}
+
+snapshots:
+
+  gpx_processor@file:pkg: {}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Test Track</name>
+    <trkseg>
+      <trkpt lat="37.7749" lon="-122.4194">
+        <time>2023-01-01T10:00:00Z</time>
+      </trkpt>
+      <trkpt lat="37.7849" lon="-122.4094">
+        <time>2023-01-01T10:01:00Z</time>
+      </trkpt>
+      <trkpt lat="37.7949" lon="-122.3994">
+        <time>2023-01-01T10:02:00Z</time>
+      </trkpt>
+      <trkpt lat="37.8049" lon="-122.3894">
+        <time>2023-01-01T10:03:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
