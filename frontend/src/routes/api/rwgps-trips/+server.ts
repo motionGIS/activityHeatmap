@@ -24,19 +24,21 @@ export const GET: RequestHandler = async ({ url, request }) => {
     // Get query parameters
     const offset = url.searchParams.get('offset') || '0';
     const limit = url.searchParams.get('limit') || '100';
-    const privacy = url.searchParams.get('privacy') || '0';
+    
+    // Build URL without privacy parameter first to test
+    const apiUrl = `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}`;
+    
+    console.log('Making request to:', apiUrl);
+    console.log('With access token:', accessToken ? 'present' : 'missing');
 
     // Make request to RideWithGPS API
-    const response = await fetch(
-      `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}&privacy=${privacy}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-          'User-Agent': 'ActivityHeatmap/1.0'
-        }
+    const response = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Accept': 'application/json',
+        'User-Agent': 'ActivityHeatmap/1.0'
       }
-    );
+    });
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -44,7 +46,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
         status: response.status,
         statusText: response.statusText,
         errorText: errorText,
-        url: `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}&privacy=${privacy}`
+        url: apiUrl
       });
       return json({ 
         error: 'Failed to fetch trips', 

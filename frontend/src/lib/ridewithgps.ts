@@ -118,7 +118,7 @@ export class RideWithGPSService {
     try {
       while (true) {
         const response = await fetch(
-          `/api/rwgps-trips?offset=${offset}&limit=${limit}&privacy=0&token=${encodeURIComponent(this.accessToken)}`,
+          `/api/rwgps-trips?offset=${offset}&limit=${limit}&token=${encodeURIComponent(this.accessToken)}`,
           {
             headers: {
               'Accept': 'application/json'
