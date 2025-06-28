@@ -11,5 +11,10 @@ export default defineConfig({
 		fs: {
 			allow: ['..']
 		}
+	},
+	build: {
+		rollupOptions: {
+			external: ['/static/gpx_processor.js']
+		}
 	}
 });

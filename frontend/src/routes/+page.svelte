@@ -17,9 +17,7 @@
   let isLoading = false;
   let error = '';
   let segmentCount = 0;
-  let currentBasemap = 'osm';
-  let showLabels = true;
-  let showOutlines = true;
+  let currentBasemap = 'white';
   let currentHeatmapData: any = null; // Store heatmap data persistently
 
   // Strava-related state
@@ -28,6 +26,7 @@
   let isImportingStrava = false;
   let stravaActivityCount = 0;
   let stravaImportProgress = 0;
+  let cachedActivities: any[] = [];
 
   const basemaps = {
     osm: {
@@ -201,13 +200,41 @@
     try {
       console.log('Fetching Strava activities...');
       
-      // Fetch all activities with progress callback
-      const activities = await stravaService.fetchAllActivities((count) => {
-        stravaActivityCount = count;
-        stravaImportProgress = Math.min(50, count); // First 50% for fetching
-      });
+      let activities: any[] = [];
+      
+      // Check if we have cached activities in localStorage
+      if (browser) {
+        const cached = localStorage.getItem('strava_activities');
+        const cacheTimestamp = localStorage.getItem('strava_activities_timestamp');
+        
+        // Use cache if it's less than 1 hour old
+        const cacheAge = cacheTimestamp ? Date.now() - parseInt(cacheTimestamp) : Infinity;
+        const cacheExpiry = 60 * 60 * 1000; // 1 hour in milliseconds
+        
+        if (cached && cacheAge < cacheExpiry) {
+          activities = JSON.parse(cached);
+          stravaActivityCount = activities.length;
+          stravaImportProgress = 50;
+          console.log(`Using cached ${activities.length} activities from localStorage`);
+        }
+      }
+      
+      // Fetch fresh data if no valid cache
+      if (activities.length === 0) {
+        activities = await stravaService.fetchAllActivities((count) => {
+          stravaActivityCount = count;
+          stravaImportProgress = Math.min(50, count); // First 50% for fetching
+        });
+        
+        // Cache the activities in localStorage
+        if (browser && activities.length > 0) {
+          localStorage.setItem('strava_activities', JSON.stringify(activities));
+          localStorage.setItem('strava_activities_timestamp', Date.now().toString());
+          console.log(`Cached ${activities.length} activities to localStorage`);
+        }
+      }
 
-      console.log(`Fetched ${activities.length} activities from Strava`);
+      console.log(`Processing ${activities.length} activities from Strava`);
 
       if (activities.length === 0) {
         error = 'No activities found in your Strava account';
@@ -478,10 +505,7 @@
     currentBasemap = basemapKey;
     const newStyle = basemaps[basemapKey as keyof typeof basemaps].style;
     
-    // Apply labels and outlines settings
-    const modifiedStyle = applyLabelAndOutlineSettings(newStyle);
-    
-    map.setStyle(modifiedStyle);
+    map.setStyle(newStyle);
     
     // Re-add heatmap layers after style loads
     map.once('style.load', () => {
@@ -489,35 +513,6 @@
         restoreHeatmapLayers(currentHeatmapData);
       }
     });
-  }
-
-  function applyLabelAndOutlineSettings(baseStyle: any) {
-    let style = JSON.parse(JSON.stringify(baseStyle)); // Deep copy
-    
-    if (currentBasemap === 'satellite' && (showLabels || showOutlines)) {
-      // For satellite, add vector overlay for labels/outlines
-      style.sources['vector-overlay'] = {
-        type: 'raster',
-        tiles: showLabels 
-          ? ['https://a.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png']
-          : ['https://a.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png'],
-        tileSize: 256,
-        attribution: '© CARTO'
-      };
-      
-      style.layers.push({
-        id: 'vector-overlay',
-        type: 'raster',
-        source: 'vector-overlay',
-        minzoom: 0,
-        maxzoom: 22,
-        paint: {
-          'raster-opacity': showOutlines ? 0.6 : (showLabels ? 0.8 : 0)
-        }
-      });
-    }
-    
-    return style;
   }
 
   function restoreHeatmapLayers(heatmapData: any) {
@@ -652,16 +647,6 @@
     return configs[tier] || configs.low;
   }
 
-  function toggleLabels() {
-    showLabels = !showLabels;
-    switchBasemap(currentBasemap); // Refresh the map with new settings
-  }
-
-  function toggleOutlines() {
-    showOutlines = !showOutlines;
-    switchBasemap(currentBasemap); // Refresh the map with new settings
-  }
-
   onMount(async () => {
     try {
       console.log('Starting initialization...');
@@ -674,12 +659,14 @@
         throw new Error('Map container not found');
       }
       
-      // Initialize WASM module dynamically
-      const wasmModule = await import('/static/gpx_processor.js');
-      await wasmModule.default('/static/gpx_processor_bg.wasm');
-      processGpxFiles = wasmModule.process_gpx_files;
-      processPolylines = wasmModule.process_polylines;
-      console.log('WASM initialized successfully');
+      // Initialize WASM module dynamically in browser only
+      if (browser) {
+        const wasmModule = await import('/static/gpx_processor.js');
+        await wasmModule.default('/static/gpx_processor_bg.wasm');
+        processGpxFiles = wasmModule.process_gpx_files;
+        processPolylines = wasmModule.process_polylines;
+        console.log('WASM initialized successfully');
+      }
 
       // Create map
       map = new maplibregl.Map({
@@ -913,9 +900,9 @@
 
   /* Strava Integration Styles */
   .strava-section {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #eee;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
   }
 
   .strava-section h3 {
@@ -1082,44 +1069,9 @@
 </style>
 
 <div class="controls">
-  <h1>GPX/FIT Heatmap Viewer</h1>
-  
-  <div class="upload-section">
-    <label for="gpx-files">Upload GPX/FIT Files:</label>
-    <input 
-      id="gpx-files"
-      type="file" 
-      multiple 
-      accept=".gpx,.fit" 
-      class="file-input"
-      on:change={handleFiles}
-      disabled={isLoading}
-    >
-    
-    <div class="status">
-      {#if isLoading}
-        <div class="loading">Processing GPX/FIT files...</div>
-      {:else if error}
-        <div class="error">{error}</div>
-      {:else if segmentCount > 0}
-        <div class="success">
-          Loaded {segmentCount} route segments
-        </div>
-      {/if}
-    </div>
-  </div>
-
   <!-- Strava Integration Section -->
   {#if browser && stravaService}
     <div class="strava-section">
-    <h3>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="strava-icon">
-        <path d="M15.387 17.064l-4.834-10.67h3.731l2.652 6.234 2.652-6.234H23.25l-4.833 10.67c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861z" fill="#FC4C02"/>
-        <path d="M8.83 6.394L4 17.064c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861L.25 6.394h3.73l2.65 6.234L9.28 6.394H8.83z" fill="#FC4C02"/>
-      </svg>
-      Strava Integration
-    </h3>
-    
     {#if !isStravaAuthenticated}
       <button 
         class="strava-connect-btn" 
@@ -1192,6 +1144,31 @@
   </div>
   {/if}
 
+  <div class="upload-section">
+    <label for="gpx-files">Upload GPX/FIT Files:</label>
+    <input 
+      id="gpx-files"
+      type="file" 
+      multiple 
+      accept=".gpx,.fit" 
+      class="file-input"
+      on:change={handleFiles}
+      disabled={isLoading}
+    >
+    
+    <div class="status">
+      {#if isLoading}
+        <div class="loading">Processing GPX/FIT files...</div>
+      {:else if error}
+        <div class="error">{error}</div>
+      {:else if segmentCount > 0}
+        <div class="success">
+          Loaded {segmentCount} route segments
+        </div>
+      {/if}
+    </div>
+  </div>
+
   {#if segmentCount > 0}
     <button 
       class="clear-btn" 
@@ -1215,29 +1192,6 @@
         </button>
       {/each}
     </div>
-    
-    {#if currentBasemap === 'satellite'}
-      <div class="overlay-controls">
-        <label class="checkbox-label">
-          <input 
-            type="checkbox" 
-            bind:checked={showLabels}
-            on:change={toggleLabels}
-            disabled={isLoading}
-          >
-          Show Labels
-        </label>
-        <label class="checkbox-label">
-          <input 
-            type="checkbox" 
-            bind:checked={showOutlines}
-            on:change={toggleOutlines}
-            disabled={isLoading}
-          >
-          Show Outlines
-        </label>
-      </div>
-    {/if}
   </div>
 
   <div class="legend">
