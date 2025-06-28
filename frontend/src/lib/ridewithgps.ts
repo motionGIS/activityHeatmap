@@ -217,16 +217,30 @@ export class RideWithGPSService {
   getPolylinesFromTrips(trips: RWGPSTrip[]): string[] {
     const polylines: string[] = [];
     
+    console.log('Sample trip data structure:', trips.length > 0 ? trips[0] : 'No trips');
+    
     for (const trip of trips) {
+      console.log('Processing trip:', {
+        id: trip.id,
+        name: trip.name,
+        hasTrackEncoded: !!trip.track_encoded,
+        hasTrackPoints: !!(trip.track_points && trip.track_points.length > 0),
+        allKeys: Object.keys(trip)
+      });
+      
       let polyline: string | null = null;
       
       if (trip.track_encoded) {
         // Use encoded polyline if available
         polyline = trip.track_encoded;
+        console.log('Using track_encoded for trip', trip.id);
       } else if (trip.track_points && trip.track_points.length > 0) {
         // Convert track points to simple coordinate string for our backend
         const coordinates = trip.track_points.map(point => [point.y, point.x]); // [lat, lng]
         polyline = JSON.stringify(coordinates);
+        console.log('Using track_points for trip', trip.id, 'with', trip.track_points.length, 'points');
+      } else {
+        console.log('No GPS data found for trip', trip.id, 'Available fields:', Object.keys(trip));
       }
       
       if (polyline && polyline.length > 0) {
