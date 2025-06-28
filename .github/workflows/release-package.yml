@@ -24,11 +24,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies and test
+      - name: Verify WASM package
         run: |
           cd gpx_processor/pkg
-          npm ci
-          # Skip npm test if no tests are defined
+          # wasm-pack generates all files directly, no need to install dependencies
+          ls -la
 
   publish-gpr:
     needs: build
@@ -57,7 +57,7 @@ jobs:
       - name: Publish to GitHub Packages
         run: |
           cd gpx_processor/pkg
-          npm ci
+          # wasm-pack generates all files directly, ready to publish
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
