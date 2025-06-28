@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import maplibregl from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
-  import init, { process_gpx_files } from '/static/gpx_processor.js';
+  import init, { process_gpx_files } from '/gpx_processor.js';
 
   let mapContainer: HTMLDivElement;
   let map: maplibregl.Map;
