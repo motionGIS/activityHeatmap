@@ -1,5 +1,5 @@
 {
-  "name": "heatmap-parse",
+  "name": "@motiongis/heatmap-parse",
   "type": "module",
   "collaborators": [
     "MotionGIS <info@motiongis.com>"

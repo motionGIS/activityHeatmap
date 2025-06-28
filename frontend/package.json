@@ -33,7 +33,7 @@
 		]
 	},
 	"dependencies": {
-		"gpx_processor": "file:..\\gpx_processor\\pkg",
+		"@motiongis/heatmap-parse": "^0.1.0",
 		"maplibre-gl": "^5.6.0"
 	}
 }

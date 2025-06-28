@@ -1,0 +1,22 @@
+# To publish the npm package, run these commands:
+
+# 1. Login to npm (in the gpx_processor/pkg directory)
+cd x:\Documents\GitHub\heatmap\gpx_processor\pkg
+npm login
+# Username: a0a7
+# Email: aw@a0.ax
+# Password: _"$veHH7@KaN&Kz
+
+# 2. Publish the package
+npm publish --access public
+
+# The --access public flag is required for scoped packages like @motiongis/heatmap-parse
+
+# 3. After publishing, install it in the frontend
+cd x:\Documents\GitHub\heatmap\frontend
+pnpm install
+
+# 4. Build and test
+pnpm build
+
+# The app should now work on Cloudflare without 404 errors!

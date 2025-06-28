@@ -783,37 +783,47 @@
       // Initialize WASM module dynamically in browser only
       if (browser) {
         try {
-          // Use proper paths for both dev and production
-          const isDev = import.meta.env.DEV;
-          const wasmJsUrl = isDev ? '/static/gpx_processor.js' : '/gpx_processor.js';
-          const wasmBgUrl = isDev ? '/static/gpx_processor_bg.wasm' : '/gpx_processor_bg.wasm';
-          
-          console.log('Loading WASM from:', wasmJsUrl, 'and', wasmBgUrl);
-          
-          // First check if the WASM files exist
-          const response = await fetch(wasmJsUrl);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch WASM JS module: ${response.status}`);
-          }
-          
-          // Import the module dynamically using a data URL to avoid build issues
-          const moduleText = await response.text();
-          const moduleBlob = new Blob([moduleText], { type: 'application/javascript' });
-          const moduleUrl = URL.createObjectURL(moduleBlob);
-          
-          const wasmModule = await import(/* @vite-ignore */ moduleUrl);
-          await wasmModule.default(wasmBgUrl);
+          // Import the npm package instead of static files
+          const wasmModule = await import('@motiongis/heatmap-parse');
+          await wasmModule.default();
           
           processGpxFiles = wasmModule.process_gpx_files;
           processPolylines = wasmModule.process_polylines;
           
-          // Clean up the object URL
-          URL.revokeObjectURL(moduleUrl);
-          
-          console.log('WASM initialized successfully');
+          console.log('WASM initialized successfully from npm package');
         } catch (err) {
-          console.error('Failed to load WASM module:', err);
-          error = `Failed to load WASM module: ${err}`;
+          console.error('Failed to load WASM module from npm:', err);
+          
+          // Fallback to static files for development
+          try {
+            const isDev = import.meta.env.DEV;
+            const wasmJsUrl = isDev ? '/static/gpx_processor.js' : '/gpx_processor.js';
+            const wasmBgUrl = isDev ? '/static/gpx_processor_bg.wasm' : '/gpx_processor_bg.wasm';
+            
+            console.log('Falling back to static WASM files:', wasmJsUrl, 'and', wasmBgUrl);
+            
+            const response = await fetch(wasmJsUrl);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch WASM JS module: ${response.status}`);
+            }
+            
+            const moduleText = await response.text();
+            const moduleBlob = new Blob([moduleText], { type: 'application/javascript' });
+            const moduleUrl = URL.createObjectURL(moduleBlob);
+            
+            const wasmModule = await import(/* @vite-ignore */ moduleUrl);
+            await wasmModule.default(wasmBgUrl);
+            
+            processGpxFiles = wasmModule.process_gpx_files;
+            processPolylines = wasmModule.process_polylines;
+            
+            URL.revokeObjectURL(moduleUrl);
+            
+            console.log('WASM initialized successfully from static files');
+          } catch (staticErr) {
+            console.error('Failed to load WASM module from static files:', staticErr);
+            error = `Failed to load WASM module: ${err}. Static fallback also failed: ${staticErr}`;
+          }
         }
       }
 
