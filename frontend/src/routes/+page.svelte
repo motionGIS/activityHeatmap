@@ -505,7 +505,7 @@
     currentBasemap = basemapKey;
     const newStyle = basemaps[basemapKey as keyof typeof basemaps].style;
     
-    map.setStyle(newStyle);
+    map.setStyle(newStyle as any);
     
     // Re-add heatmap layers after style loads
     map.once('style.load', () => {
@@ -661,17 +661,45 @@
       
       // Initialize WASM module dynamically in browser only
       if (browser) {
-        const wasmModule = await import('/static/gpx_processor.js');
-        await wasmModule.default('/static/gpx_processor_bg.wasm');
-        processGpxFiles = wasmModule.process_gpx_files;
-        processPolylines = wasmModule.process_polylines;
-        console.log('WASM initialized successfully');
+        try {
+          // Use proper paths for both dev and production
+          const isDev = import.meta.env.DEV;
+          const wasmJsUrl = isDev ? '/static/gpx_processor.js' : '/gpx_processor.js';
+          const wasmBgUrl = isDev ? '/static/gpx_processor_bg.wasm' : '/gpx_processor_bg.wasm';
+          
+          console.log('Loading WASM from:', wasmJsUrl, 'and', wasmBgUrl);
+          
+          // First check if the WASM files exist
+          const response = await fetch(wasmJsUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch WASM JS module: ${response.status}`);
+          }
+          
+          // Import the module dynamically using a data URL to avoid build issues
+          const moduleText = await response.text();
+          const moduleBlob = new Blob([moduleText], { type: 'application/javascript' });
+          const moduleUrl = URL.createObjectURL(moduleBlob);
+          
+          const wasmModule = await import(/* @vite-ignore */ moduleUrl);
+          await wasmModule.default(wasmBgUrl);
+          
+          processGpxFiles = wasmModule.process_gpx_files;
+          processPolylines = wasmModule.process_polylines;
+          
+          // Clean up the object URL
+          URL.revokeObjectURL(moduleUrl);
+          
+          console.log('WASM initialized successfully');
+        } catch (err) {
+          console.error('Failed to load WASM module:', err);
+          error = `Failed to load WASM module: ${err}`;
+        }
       }
 
       // Create map
       map = new maplibregl.Map({
         container: mapContainer,
-        style: basemaps[currentBasemap as keyof typeof basemaps].style,
+        style: basemaps[currentBasemap as keyof typeof basemaps].style as any,
         center: [-96, 37.8],
         zoom: 3
       });
@@ -842,24 +870,6 @@
     cursor: not-allowed;
   }
 
-  .overlay-controls {
-    margin-top: 0.5rem;
-  }
-
-  .checkbox-label {
-    display: flex;
-    align-items: center;
-    margin-bottom: 0.25rem;
-    font-size: 0.8rem;
-    color: #555;
-    cursor: pointer;
-  }
-
-  .checkbox-label input[type="checkbox"] {
-    margin-right: 0.5rem;
-    cursor: pointer;
-  }
-
   .legend {
     margin-top: 1rem;
     padding-top: 1rem;
@@ -885,12 +895,6 @@
     margin-right: 0.5rem;
   }
 
-  h1 {
-    margin: 0 0 1rem 0;
-    font-size: 1.2rem;
-    color: #333;
-  }
-
   label {
     display: block;
     margin-bottom: 0.5rem;
@@ -903,19 +907,6 @@
     margin-bottom: 1rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid #eee;
-  }
-
-  .strava-section h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .strava-icon {
-    flex-shrink: 0;
   }
 
   .strava-connect-btn {
