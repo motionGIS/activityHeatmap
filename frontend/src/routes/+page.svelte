@@ -2,7 +2,15 @@
   import { onMount } from 'svelte';
   import maplibregl from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
-  import init, { process_gpx_files } from '/gpx_processor.js';
+  import { browser } from '$app/environment';
+  
+  // Import Strava service conditionally
+  let stravaService: any = null;
+  
+  // WASM module functions - will be loaded dynamically
+  let wasmInit: any = null;
+  let processGpxFiles: any = null;
+  let processPolylines: any = null;
 
   let mapContainer: HTMLDivElement;
   let map: maplibregl.Map;
@@ -13,6 +21,13 @@
   let showLabels = true;
   let showOutlines = true;
   let currentHeatmapData: any = null; // Store heatmap data persistently
+
+  // Strava-related state
+  let isStravaAuthenticated = false;
+  let stravaAthlete: any = null;
+  let isImportingStrava = false;
+  let stravaActivityCount = 0;
+  let stravaImportProgress = 0;
 
   const basemaps = {
     osm: {
@@ -140,161 +155,252 @@
       console.log('Calling WASM function with', jsArray.length, 'buffers');
 
       // Process GPX files with WASM
-      const result = process_gpx_files(jsArray);
+      if (!processGpxFiles) {
+        throw new Error('WASM module not loaded');
+      }
+      const result = processGpxFiles(jsArray);
       const heatmapResult = result as { tracks: any[], max_frequency: number };
       
       console.log('WASM returned', heatmapResult.tracks.length, 'tracks with max frequency:', heatmapResult.max_frequency);
       
-      // Debug frequency distribution
-      const frequencies = heatmapResult.tracks.map(t => t.frequency);
-      const freqCounts = frequencies.reduce((acc, freq) => {
-        acc[freq] = (acc[freq] || 0) + 1;
-        return acc;
-      }, {} as Record<number, number>);
-      console.log('Frequency distribution:', freqCounts);
-      console.log('Unique frequencies:', [...new Set(frequencies)].sort((a, b) => a - b));
-      
-      // Calculate percentiles for better distribution
-      const sortedFreqs = frequencies.slice().sort((a, b) => a - b);
-      const p50 = sortedFreqs[Math.floor(sortedFreqs.length * 0.5)];
-      const p75 = sortedFreqs[Math.floor(sortedFreqs.length * 0.75)];
-      const p90 = sortedFreqs[Math.floor(sortedFreqs.length * 0.9)];
-      console.log(`Percentiles: 50th=${p50}, 75th=${p75}, 90th=${p90}, max=${heatmapResult.max_frequency}`);
-      
-      segmentCount = heatmapResult.tracks.length;
-
-      if (heatmapResult.tracks.length === 0) {
-        throw new Error('No tracks found in GPX/FIT files. Please check that the files contain valid GPS tracks.');
-      }
-
-      // Convert to GeoJSON with percentile-based opacity
-      const geojson = {
-        type: "FeatureCollection" as const,
-        features: heatmapResult.tracks.map(track => ({
-          type: "Feature" as const,
-          geometry: {
-            type: "LineString" as const,
-            coordinates: track.coordinates.map((coord: number[]) => [coord[1], coord[0]]) // [lon, lat]
-          },
-          properties: { 
-            frequency: track.frequency,
-            opacity_hot: calculateOpacityPercentile(track.frequency, p75, p90, heatmapResult.max_frequency, 'hot'),
-            opacity_medium: calculateOpacityPercentile(track.frequency, p50, p75, p90, 'medium')
-          }
-        }))
-      };
-
-      // Store heatmap data persistently
-      currentHeatmapData = geojson;
-
-      // Clear existing layers
-      ['heatmap-cold', 'heatmap-medium', 'heatmap-hot'].forEach(layerId => {
-        if (map.getLayer(layerId)) {
-          map.removeLayer(layerId);
-        }
-      });
-      ['heatmap'].forEach(sourceId => {
-        if (map.getSource(sourceId)) {
-          map.removeSource(sourceId);
-        }
-      });
-
-      // Add the single source for all layers
-      map.addSource('heatmap', {
-        type: 'geojson',
-        data: geojson
-      });
-
-      // Layer 1: Cold (blue, lowest z-index)
-      map.addLayer({
-        id: 'heatmap-cold',
-        type: 'line',
-        source: 'heatmap',
-        paint: {
-          'line-color': '#0066ff', // Blue
-          'line-width': [
-            'interpolate', 
-            ['linear'], 
-            ['zoom'],
-            1, 2,
-            5, 3,
-            10, 4,
-            15, 6
-          ],
-          'line-opacity': 0.6
-        },
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        }
-      });
-
-      // Layer 2: Medium (red, middle z-index)
-      map.addLayer({
-        id: 'heatmap-medium',
-        type: 'line',
-        source: 'heatmap',
-        paint: {
-          'line-color': '#ff3300', // Red
-          'line-width': [
-            'interpolate', 
-            ['linear'], 
-            ['zoom'],
-            1, 1.5,
-            5, 2.5,
-            10, 3.5,
-            15, 5.5
-          ],
-          'line-opacity': ['get', 'opacity_medium']
-        },
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        }
-      });
-
-      // Layer 3: Hot (yellow, highest z-index)
-      map.addLayer({
-        id: 'heatmap-hot',
-        type: 'line',
-        source: 'heatmap',
-        paint: {
-          'line-color': '#ffff00', // Yellow
-          'line-width': [
-            'interpolate', 
-            ['linear'], 
-            ['zoom'],
-            1, 1,
-            5, 2,
-            10, 3,
-            15, 5
-          ],
-          'line-opacity': ['get', 'opacity_hot']
-        },
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round'
-        }
-      });
-      
-      console.log('Strava-style multi-layer heatmap added successfully');
-
-      // Fit map to show all tracks
-      if (heatmapResult.tracks.length > 0) {
-        const bounds = new maplibregl.LngLatBounds();
-        heatmapResult.tracks.forEach(track => {
-          track.coordinates.forEach((coord: number[]) => {
-            bounds.extend([coord[1], coord[0]]); // [lon, lat]
-          });
-        });
-        map.fitBounds(bounds, { padding: 50 });
-      }
+      // Use the shared rendering function
+      await renderHeatmapResult(heatmapResult);
 
     } catch (err) {
       error = `Error processing GPX/FIT files: ${err}`;
       console.error(err);
     } finally {
       isLoading = false;
+    }
+  }
+
+  // Strava functions
+  function connectToStrava() {
+    if (!stravaService) return;
+    const authUrl = stravaService.getAuthUrl();
+    window.location.href = authUrl;
+  }
+
+  function disconnectFromStrava() {
+    if (!stravaService) return;
+    stravaService.logout();
+    isStravaAuthenticated = false;
+    stravaAthlete = null;
+  }
+
+  async function importStravaActivities() {
+    if (!stravaService || !stravaService.isAuthenticated()) {
+      error = 'Not connected to Strava';
+      return;
+    }
+
+    isImportingStrava = true;
+    stravaImportProgress = 0;
+    error = '';
+
+    try {
+      console.log('Fetching Strava activities...');
+      
+      // Fetch all activities with progress callback
+      const activities = await stravaService.fetchAllActivities((count) => {
+        stravaActivityCount = count;
+        stravaImportProgress = Math.min(50, count); // First 50% for fetching
+      });
+
+      console.log(`Fetched ${activities.length} activities from Strava`);
+
+      if (activities.length === 0) {
+        error = 'No activities found in your Strava account';
+        return;
+      }
+
+      // Extract polylines from activities
+      const polylines = stravaService.getPolylinesFromActivities(activities);
+      
+      if (polylines.length === 0) {
+        error = 'No GPS data found in your Strava activities';
+        return;
+      }
+
+      console.log(`Processing ${polylines.length} polylines...`);
+      stravaImportProgress = 75;
+
+      // Process polylines with our WASM function
+      if (!processPolylines) {
+        throw new Error('WASM module not loaded');
+      }
+      const jsArray = new Array();
+      for (const polyline of polylines) {
+        jsArray.push(polyline);
+      }
+
+      const result = processPolylines(jsArray);
+      const heatmapResult = result as { tracks: any[], max_frequency: number };
+      
+      console.log('WASM returned', heatmapResult.tracks.length, 'tracks with max frequency:', heatmapResult.max_frequency);
+      
+      stravaImportProgress = 90;
+
+      // Use the same rendering logic as GPX files
+      await renderHeatmapResult(heatmapResult);
+      
+      stravaImportProgress = 100;
+      console.log('Strava import completed successfully');
+
+    } catch (err) {
+      error = `Error importing Strava activities: ${err}`;
+      console.error(err);
+    } finally {
+      isImportingStrava = false;
+      stravaImportProgress = 0;
+    }
+  }
+
+  // Extract heatmap rendering logic into a reusable function
+  async function renderHeatmapResult(heatmapResult: { tracks: any[], max_frequency: number }) {
+    // Debug frequency distribution
+    const frequencies = heatmapResult.tracks.map(t => t.frequency);
+    const freqCounts = frequencies.reduce((acc, freq) => {
+      acc[freq] = (acc[freq] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+    console.log('Frequency distribution:', freqCounts);
+    console.log('Unique frequencies:', [...new Set(frequencies)].sort((a, b) => a - b));
+    
+    // Calculate percentiles for better distribution
+    const sortedFreqs = frequencies.slice().sort((a, b) => a - b);
+    const p50 = sortedFreqs[Math.floor(sortedFreqs.length * 0.5)];
+    const p75 = sortedFreqs[Math.floor(sortedFreqs.length * 0.75)];
+    const p90 = sortedFreqs[Math.floor(sortedFreqs.length * 0.9)];
+    console.log(`Percentiles: 50th=${p50}, 75th=${p75}, 90th=${p90}, max=${heatmapResult.max_frequency}`);
+    
+    segmentCount = heatmapResult.tracks.length;
+
+    if (heatmapResult.tracks.length === 0) {
+      throw new Error('No tracks found in data. Please check that the files contain valid GPS tracks.');
+    }
+
+    // Convert to GeoJSON with percentile-based opacity
+    const geojson = {
+      type: "FeatureCollection" as const,
+      features: heatmapResult.tracks.map(track => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "LineString" as const,
+          coordinates: track.coordinates.map((coord: number[]) => [coord[1], coord[0]]) // [lon, lat]
+        },
+        properties: { 
+          frequency: track.frequency,
+          opacity_hot: calculateOpacityPercentile(track.frequency, p75, p90, heatmapResult.max_frequency, 'hot'),
+          opacity_medium: calculateOpacityPercentile(track.frequency, p50, p75, p90, 'medium')
+        }
+      }))
+    };
+
+    // Store heatmap data persistently
+    currentHeatmapData = geojson;
+
+    // Clear existing layers
+    ['heatmap-cold', 'heatmap-medium', 'heatmap-hot'].forEach(layerId => {
+      if (map.getLayer(layerId)) {
+        map.removeLayer(layerId);
+      }
+    });
+    ['heatmap'].forEach(sourceId => {
+      if (map.getSource(sourceId)) {
+        map.removeSource(sourceId);
+      }
+    });
+
+    // Add the single source for all layers
+    map.addSource('heatmap', {
+      type: 'geojson',
+      data: geojson
+    });
+
+    // Layer 1: Cold (blue, lowest z-index)
+    map.addLayer({
+      id: 'heatmap-cold',
+      type: 'line',
+      source: 'heatmap',
+      paint: {
+        'line-color': '#0066ff', // Blue
+        'line-width': [
+          'interpolate', 
+          ['linear'], 
+          ['zoom'],
+          1, 2,
+          5, 3,
+          10, 4,
+          15, 6
+        ],
+        'line-opacity': 0.6
+      },
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      }
+    });
+
+    // Layer 2: Medium (red, middle z-index)
+    map.addLayer({
+      id: 'heatmap-medium',
+      type: 'line',
+      source: 'heatmap',
+      paint: {
+        'line-color': '#ff3300', // Red
+        'line-width': [
+          'interpolate', 
+          ['linear'], 
+          ['zoom'],
+          1, 1.5,
+          5, 2.5,
+          10, 3.5,
+          15, 5.5
+        ],
+        'line-opacity': ['get', 'opacity_medium']
+      },
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      }
+    });
+
+    // Layer 3: Hot (yellow, highest z-index)
+    map.addLayer({
+      id: 'heatmap-hot',
+      type: 'line',
+      source: 'heatmap',
+      paint: {
+        'line-color': '#ffff00', // Yellow
+        'line-width': [
+          'interpolate', 
+          ['linear'], 
+          ['zoom'],
+          1, 1,
+          5, 2,
+          10, 3,
+          15, 5
+        ],
+        'line-opacity': ['get', 'opacity_hot']
+      },
+      layout: {
+        'line-join': 'round',
+        'line-cap': 'round'
+      }
+    });
+    
+    console.log('Strava-style multi-layer heatmap added successfully');
+
+    // Fit map to show all tracks
+    if (heatmapResult.tracks.length > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      heatmapResult.tracks.forEach(track => {
+        track.coordinates.forEach((coord: number[]) => {
+          bounds.extend([coord[1], coord[0]]); // [lon, lat]
+        });
+      });
+      map.fitBounds(bounds, { padding: 50 });
     }
   }
 
@@ -370,7 +476,7 @@
     if (!map || currentBasemap === basemapKey) return;
     
     currentBasemap = basemapKey;
-    const newStyle = basemaps[basemapKey].style;
+    const newStyle = basemaps[basemapKey as keyof typeof basemaps].style;
     
     // Apply labels and outlines settings
     const modifiedStyle = applyLabelAndOutlineSettings(newStyle);
@@ -568,14 +674,17 @@
         throw new Error('Map container not found');
       }
       
-      // Initialize WASM module 
-      await init('/static/gpx_processor_bg.wasm');
+      // Initialize WASM module dynamically
+      const wasmModule = await import('/static/gpx_processor.js');
+      await wasmModule.default('/static/gpx_processor_bg.wasm');
+      processGpxFiles = wasmModule.process_gpx_files;
+      processPolylines = wasmModule.process_polylines;
       console.log('WASM initialized successfully');
 
       // Create map
       map = new maplibregl.Map({
         container: mapContainer,
-        style: basemaps[currentBasemap].style,
+        style: basemaps[currentBasemap as keyof typeof basemaps].style,
         center: [-96, 37.8],
         zoom: 3
       });
@@ -597,6 +706,18 @@
       map.on('style.load', () => {
         console.log('Map style loaded');
       });
+
+      // Check Strava authentication status
+      if (browser) {
+        // Import Strava service dynamically to avoid SSR issues
+        const { stravaService: service } = await import('../lib/strava');
+        stravaService = service;
+        
+        isStravaAuthenticated = stravaService.isAuthenticated();
+        if (isStravaAuthenticated) {
+          stravaAthlete = await stravaService.fetchAthleteInfo();
+        }
+      }
 
     } catch (err) {
       error = `Failed to initialize: ${err}`;
@@ -789,6 +910,175 @@
     font-weight: 500;
     color: #555;
   }
+
+  /* Strava Integration Styles */
+  .strava-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+  }
+
+  .strava-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .strava-icon {
+    flex-shrink: 0;
+  }
+
+  .strava-connect-btn {
+    width: 100%;
+    background: #fc4c02;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .strava-connect-btn:hover:not(:disabled) {
+    background: #e04402;
+  }
+
+  .strava-connect-btn:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+  }
+
+  .strava-info {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+  }
+
+  .strava-connected {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 1rem;
+  }
+
+  .athlete-info {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .athlete-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .connection-status {
+    font-size: 0.8rem;
+    color: #28a745;
+  }
+
+  .strava-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .import-btn {
+    flex: 1;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: background 0.2s;
+  }
+
+  .import-btn:hover:not(:disabled) {
+    background: #218838;
+  }
+
+  .import-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+  }
+
+  .disconnect-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .disconnect-btn:hover:not(:disabled) {
+    background: #5a6268;
+  }
+
+  .disconnect-btn:disabled {
+    background: #adb5bd;
+    cursor: not-allowed;
+  }
+
+  .import-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  .import-progress {
+    margin-top: 0.5rem;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #fc4c02;
+    transition: width 0.3s ease;
+  }
+
+  .progress-text {
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
 </style>
 
 <div class="controls">
@@ -818,6 +1108,89 @@
       {/if}
     </div>
   </div>
+
+  <!-- Strava Integration Section -->
+  {#if browser && stravaService}
+    <div class="strava-section">
+    <h3>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="strava-icon">
+        <path d="M15.387 17.064l-4.834-10.67h3.731l2.652 6.234 2.652-6.234H23.25l-4.833 10.67c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861z" fill="#FC4C02"/>
+        <path d="M8.83 6.394L4 17.064c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861L.25 6.394h3.73l2.65 6.234L9.28 6.394H8.83z" fill="#FC4C02"/>
+      </svg>
+      Strava Integration
+    </h3>
+    
+    {#if !isStravaAuthenticated}
+      <button 
+        class="strava-connect-btn" 
+        on:click={connectToStrava}
+        disabled={isLoading || isImportingStrava}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M15.387 17.064l-4.834-10.67h3.731l2.652 6.234 2.652-6.234H23.25l-4.833 10.67c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861z" fill="currentColor"/>
+          <path d="M8.83 6.394L4 17.064c-.25.548-.735.861-1.266.861-.53 0-1.015-.313-1.264-.861L.25 6.394h3.73l2.65 6.234L9.28 6.394H8.83z" fill="currentColor"/>
+        </svg>
+        Connect to Strava
+      </button>
+      <p class="strava-info">Import all your Strava activities to create a comprehensive heatmap</p>
+    {:else}
+      <div class="strava-connected">
+        <div class="athlete-info">
+          {#if stravaAthlete}
+            <img src={stravaAthlete.profile} alt="Profile" class="athlete-avatar">
+            <div>
+              <strong>{stravaAthlete.firstname} {stravaAthlete.lastname}</strong>
+              <div class="connection-status">Connected to Strava</div>
+            </div>
+          {:else}
+            <div>
+              <strong>Connected to Strava</strong>
+              <div class="connection-status">Ready to import activities</div>
+            </div>
+          {/if}
+        </div>
+        
+        <div class="strava-actions">
+          <button 
+            class="import-btn" 
+            on:click={importStravaActivities}
+            disabled={isLoading || isImportingStrava}
+          >
+            {#if isImportingStrava}
+              <div class="import-spinner"></div>
+              Importing Activities...
+            {:else}
+              Import All Activities
+            {/if}
+          </button>
+          
+          <button 
+            class="disconnect-btn" 
+            on:click={disconnectFromStrava}
+            disabled={isLoading || isImportingStrava}
+          >
+            Disconnect
+          </button>
+        </div>
+        
+        {#if isImportingStrava}
+          <div class="import-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {stravaImportProgress}%"></div>
+            </div>
+            <div class="progress-text">
+              {#if stravaActivityCount > 0}
+                Fetched {stravaActivityCount} activities... {stravaImportProgress}%
+              {:else}
+                Connecting to Strava... {stravaImportProgress}%
+              {/if}
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+  {/if}
 
   {#if segmentCount > 0}
     <button 

@@ -1,7 +1,16 @@
 // Strava API integration
+import { browser } from '$app/environment';
+
 const STRAVA_CLIENT_ID = import.meta.env.VITE_STRAVA_CLIENT_ID;
 const STRAVA_CLIENT_SECRET = import.meta.env.VITE_STRAVA_CLIENT_SECRET;
-const STRAVA_REDIRECT_URI = `${window.location.origin}/strava-callback`;
+
+// Helper function to get redirect URI (only works in browser)
+function getRedirectUri(): string {
+  if (browser && typeof window !== 'undefined') {
+    return `${window.location.origin}/strava-callback`;
+  }
+  return 'http://localhost:5173/strava-callback'; // fallback for SSR
+}
 
 export interface StravaActivity {
   id: number;
@@ -27,8 +36,10 @@ export class StravaService {
   private athlete: StravaAthlete | null = null;
 
   constructor() {
-    // Check if we have a stored access token
-    this.accessToken = localStorage.getItem('strava_access_token');
+    // Check if we have a stored access token (only in browser)
+    if (browser && typeof localStorage !== 'undefined') {
+      this.accessToken = localStorage.getItem('strava_access_token');
+    }
   }
 
   // Generate OAuth URL for Strava authorization
@@ -36,7 +47,7 @@ export class StravaService {
     const scope = 'read,activity:read_all';
     const params = new URLSearchParams({
       client_id: STRAVA_CLIENT_ID,
-      redirect_uri: STRAVA_REDIRECT_URI,
+      redirect_uri: getRedirectUri(),
       response_type: 'code',
       scope: scope,
       approval_prompt: 'auto'
@@ -70,10 +81,12 @@ export class StravaService {
       this.accessToken = data.access_token;
       this.athlete = data.athlete;
       
-      // Store tokens in localStorage
-      localStorage.setItem('strava_access_token', data.access_token);
-      if (data.refresh_token) {
-        localStorage.setItem('strava_refresh_token', data.refresh_token);
+      // Store tokens in localStorage (only in browser)
+      if (browser && typeof localStorage !== 'undefined') {
+        localStorage.setItem('strava_access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('strava_refresh_token', data.refresh_token);
+        }
       }
       
       return true;
@@ -202,8 +215,10 @@ export class StravaService {
   logout(): void {
     this.accessToken = null;
     this.athlete = null;
-    localStorage.removeItem('strava_access_token');
-    localStorage.removeItem('strava_refresh_token');
+    if (browser && typeof localStorage !== 'undefined') {
+      localStorage.removeItem('strava_access_token');
+      localStorage.removeItem('strava_refresh_token');
+    }
   }
 
   // Get athlete info from API
