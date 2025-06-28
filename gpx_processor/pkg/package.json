@@ -1,5 +1,5 @@
 {
-  "name": "gpx-processor",
+  "name": "heatmap-parse",
   "type": "module",
   "collaborators": [
     "MotionGIS <info@motiongis.com>"
@@ -12,12 +12,12 @@
     "url": "https://github.com/motiongis/heatmap"
   },
   "files": [
-    "gpx_processor_bg.wasm",
-    "gpx_processor.js",
-    "gpx_processor.d.ts"
+    "heatmap_parse_bg.wasm",
+    "heatmap_parse.js",
+    "heatmap_parse.d.ts"
   ],
-  "main": "gpx_processor.js",
-  "types": "gpx_processor.d.ts",
+  "main": "heatmap_parse.js",
+  "types": "heatmap_parse.d.ts",
   "sideEffects": [
     "./snippets/*"
   ],

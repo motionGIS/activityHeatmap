@@ -88,8 +88,19 @@ pub fn decode_polyline_string(encoded: &str) -> JsValue {
     serde_wasm_bindgen::to_value(&coords).unwrap()
 }
 
-// Process polyline strings
+// Process polyline strings - handles both encoded polylines and JSON coordinate arrays
 fn process_polyline(polyline_str: &str) -> Vec<[f64; 2]> {
+    // First try to parse as JSON (RideWithGPS format)
+    if let Ok(json_coords) = serde_json::from_str::<Vec<[f64; 2]>>(polyline_str) {
+        // It's a JSON array of coordinates
+        return if !json_coords.is_empty() {
+            filter_unrealistic_jumps(&json_coords)
+        } else {
+            Vec::new()
+        };
+    }
+    
+    // If JSON parsing fails, treat as encoded polyline (Strava format)
     let coords = decode_polyline(polyline_str);
     if !coords.is_empty() {
         filter_unrealistic_jumps(&coords)

@@ -7,6 +7,9 @@
   // Import Strava service conditionally
   let stravaService: any = null;
   
+  // Import RideWithGPS service conditionally
+  let ridewithgpsService: any = null;
+  
   // WASM module functions - will be loaded dynamically
   let wasmInit: any = null;
   let processGpxFiles: any = null;
@@ -27,6 +30,14 @@
   let stravaActivityCount = 0;
   let stravaImportProgress = 0;
   let cachedActivities: any[] = [];
+
+  // RideWithGPS-related state
+  let isRWGPSAuthenticated = false;
+  let rwgpsUser: any = null;
+  let isImportingRWGPS = false;
+  let rwgpsTripCount = 0;
+  let rwgpsImportProgress = 0;
+  let cachedTrips: any[] = [];
 
   const basemaps = {
     osm: {
@@ -280,6 +291,116 @@
     } finally {
       isImportingStrava = false;
       stravaImportProgress = 0;
+    }
+  }
+
+  // RideWithGPS functions
+  function connectToRWGPS() {
+    if (!ridewithgpsService) return;
+    const authUrl = ridewithgpsService.getAuthUrl();
+    window.location.href = authUrl;
+  }
+
+  function disconnectFromRWGPS() {
+    if (!ridewithgpsService) return;
+    ridewithgpsService.logout();
+    isRWGPSAuthenticated = false;
+    rwgpsUser = null;
+  }
+
+  async function importRWGPSTrips() {
+    if (!ridewithgpsService || !ridewithgpsService.isAuthenticated()) {
+      error = 'Not connected to RideWithGPS';
+      return;
+    }
+
+    isImportingRWGPS = true;
+    rwgpsImportProgress = 0;
+    error = '';
+
+    try {
+      console.log('Fetching RideWithGPS trips...');
+      
+      let trips: any[] = [];
+      
+      // Check if we have cached trips in localStorage
+      if (browser) {
+        const cached = localStorage.getItem('rwgps_trips');
+        const cacheTimestamp = localStorage.getItem('rwgps_trips_timestamp');
+        
+        // Use cache if it's less than 1 hour old
+        const cacheAge = cacheTimestamp ? Date.now() - parseInt(cacheTimestamp) : Infinity;
+        const cacheExpiry = 60 * 60 * 1000; // 1 hour in milliseconds
+        
+        if (cached && cacheAge < cacheExpiry) {
+          trips = JSON.parse(cached);
+          rwgpsTripCount = trips.length;
+          rwgpsImportProgress = 50;
+          console.log(`Using cached ${trips.length} trips from localStorage`);
+        }
+      }
+      
+      // Fetch fresh data if no valid cache
+      if (trips.length === 0) {
+        trips = await ridewithgpsService.fetchAllTrips((count) => {
+          rwgpsTripCount = count;
+          rwgpsImportProgress = Math.min(50, count); // First 50% for fetching
+        });
+        
+        // Cache the trips in localStorage
+        if (browser && trips.length > 0) {
+          localStorage.setItem('rwgps_trips', JSON.stringify(trips));
+          localStorage.setItem('rwgps_trips_timestamp', Date.now().toString());
+          console.log(`Cached ${trips.length} trips to localStorage`);
+        }
+      }
+
+      console.log(`Processing ${trips.length} trips from RideWithGPS`);
+
+      if (trips.length === 0) {
+        error = 'No trips found in your RideWithGPS account';
+        return;
+      }
+
+      // Extract polylines from trips
+      const polylines = ridewithgpsService.getPolylinesFromTrips(trips);
+      
+      if (polylines.length === 0) {
+        error = 'No GPS data found in your RideWithGPS trips';
+        return;
+      }
+
+      console.log(`Processing ${polylines.length} polylines...`);
+      rwgpsImportProgress = 75;
+
+      // Process polylines with our WASM function
+      if (!processPolylines) {
+        throw new Error('WASM module not loaded');
+      }
+      const jsArray = new Array();
+      for (const polyline of polylines) {
+        jsArray.push(polyline);
+      }
+
+      const result = processPolylines(jsArray);
+      const heatmapResult = result as { tracks: any[], max_frequency: number };
+      
+      console.log('WASM returned', heatmapResult.tracks.length, 'tracks with max frequency:', heatmapResult.max_frequency);
+      
+      rwgpsImportProgress = 90;
+
+      // Use the same rendering logic as GPX files
+      await renderHeatmapResult(heatmapResult);
+      
+      rwgpsImportProgress = 100;
+      console.log('RideWithGPS import completed successfully');
+
+    } catch (err) {
+      error = `Error importing RideWithGPS trips: ${err}`;
+      console.error(err);
+    } finally {
+      isImportingRWGPS = false;
+      rwgpsImportProgress = 0;
     }
   }
 
@@ -732,6 +853,15 @@
         if (isStravaAuthenticated) {
           stravaAthlete = await stravaService.fetchAthleteInfo();
         }
+        
+        // Import RideWithGPS service dynamically to avoid SSR issues
+        const { ridewithgpsService: rwgpsService } = await import('../lib/ridewithgps');
+        ridewithgpsService = rwgpsService;
+        
+        isRWGPSAuthenticated = ridewithgpsService.isAuthenticated();
+        if (isRWGPSAuthenticated) {
+          rwgpsUser = await ridewithgpsService.fetchUserInfo();
+        }
       }
 
     } catch (err) {
@@ -1057,6 +1187,53 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
   }
+
+  /* RideWithGPS Integration Styles */
+  .rwgps-section {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+  }
+
+  .rwgps-connect-btn {
+    width: 100%;
+    background: #ca4e02;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .rwgps-connect-btn:hover:not(:disabled) {
+    background: #a03e02;
+  }
+
+  .rwgps-connect-btn:disabled {
+    background: #bdc3c7;
+    cursor: not-allowed;
+  }
+
+  .rwgps-info {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #666;
+    text-align: center;
+  }
+
+  .rwgps-connected {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 1rem;
+  }
 </style>
 
 <div class="controls">
@@ -1126,6 +1303,81 @@
                 Fetched {stravaActivityCount} activities... {stravaImportProgress}%
               {:else}
                 Connecting to Strava... {stravaImportProgress}%
+              {/if}
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </div>
+  {/if}
+
+  <!-- RideWithGPS Integration Section -->
+  {#if browser && ridewithgpsService}
+    <div class="rwgps-section">
+    {#if !isRWGPSAuthenticated}
+      <button 
+        class="rwgps-connect-btn" 
+        on:click={connectToRWGPS}
+        disabled={isLoading || isImportingRWGPS}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M12 0C5.373 0 0 5.373 0 12c0 6.627 5.373 12 12 12 6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22.063c-5.558 0-10.063-4.505-10.063-10.063S6.442 1.938 12 1.938 22.063 6.443 22.063 12 17.558 22.063 12 22.063z"/>
+          <path fill="currentColor" d="M16.5 11.25h-9v1.5h9v-1.5zM12 16.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+        </svg>
+        Connect to RideWithGPS
+      </button>
+      <p class="rwgps-info">Import all your RideWithGPS trips to create a comprehensive heatmap</p>
+    {:else}
+      <div class="rwgps-connected">
+        <div class="athlete-info">
+          {#if rwgpsUser}
+            <img src={rwgpsUser.profile} alt="Profile" class="athlete-avatar">
+            <div>
+              <strong>{rwgpsUser.firstname} {rwgpsUser.lastname}</strong>
+              <div class="connection-status">Connected to RideWithGPS</div>
+            </div>
+          {:else}
+            <div>
+              <strong>Connected to RideWithGPS</strong>
+              <div class="connection-status">Ready to import trips</div>
+            </div>
+          {/if}
+        </div>
+        
+        <div class="strava-actions">
+          <button 
+            class="import-btn" 
+            on:click={importRWGPSTrips}
+            disabled={isLoading || isImportingRWGPS}
+          >
+            {#if isImportingRWGPS}
+              <div class="import-spinner"></div>
+              Importing Trips...
+            {:else}
+              Import All Trips
+            {/if}
+          </button>
+          
+          <button 
+            class="disconnect-btn" 
+            on:click={disconnectFromRWGPS}
+            disabled={isLoading || isImportingRWGPS}
+          >
+            Disconnect
+          </button>
+        </div>
+        
+        {#if isImportingRWGPS}
+          <div class="import-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {rwgpsImportProgress}%"></div>
+            </div>
+            <div class="progress-text">
+              {#if rwgpsTripCount > 0}
+                Fetched {rwgpsTripCount} trips... {rwgpsImportProgress}%
+              {:else}
+                Connecting to RideWithGPS... {rwgpsImportProgress}%
               {/if}
             </div>
           </div>
