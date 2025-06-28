@@ -163,7 +163,7 @@
       segmentCount = heatmapResult.tracks.length;
 
       if (heatmapResult.tracks.length === 0) {
-        throw new Error('No tracks found in GPX files. Please check that the files contain valid GPS tracks.');
+        throw new Error('No tracks found in GPX/FIT files. Please check that the files contain valid GPS tracks.');
       }
 
       // Convert to GeoJSON with percentile-based opacity
@@ -287,7 +287,7 @@
       }
 
     } catch (err) {
-      error = `Error processing GPX files: ${err}`;
+      error = `Error processing GPX/FIT files: ${err}`;
       console.error(err);
     } finally {
       isLoading = false;
@@ -789,15 +789,15 @@
 </style>
 
 <div class="controls">
-  <h1>GPX Heatmap Viewer</h1>
+  <h1>GPX/FIT Heatmap Viewer</h1>
   
   <div class="upload-section">
-    <label for="gpx-files">Upload GPX Files:</label>
+    <label for="gpx-files">Upload GPX/FIT Files:</label>
     <input 
       id="gpx-files"
       type="file" 
       multiple 
-      accept=".gpx" 
+      accept=".gpx,.fit" 
       class="file-input"
       on:change={handleFiles}
       disabled={isLoading}
@@ -805,7 +805,7 @@
     
     <div class="status">
       {#if isLoading}
-        <div class="loading">Processing GPX files...</div>
+        <div class="loading">Processing GPX/FIT files...</div>
       {:else if error}
         <div class="error">{error}</div>
       {:else if segmentCount > 0}
