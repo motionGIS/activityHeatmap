@@ -62,11 +62,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpx_processor"
+name = "heatmap-parse"
 version = "0.1.0"
 dependencies = [
  "gpx",
  "js-sys",
+ "polyline",
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
@@ -129,6 +130,15 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "polyline"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c9eab93773e160c050396e87b90a6ec62969d4a13035e922b023a340b6b2d47"
+dependencies = [
+ "geo-types",
+]
 
 [[package]]
 name = "powerfmt"

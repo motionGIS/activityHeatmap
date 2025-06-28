@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import maplibregl from 'maplibre-gl';
   import 'maplibre-gl/dist/maplibre-gl.css';
-      import init, { process_gpx_files } from 'gpx_processor';
+  import init, { process_gpx_files } from '/static/gpx_processor.js';
 
   let mapContainer: HTMLDivElement;
   let map: maplibregl.Map;
@@ -12,6 +12,7 @@
   let currentBasemap = 'osm';
   let showLabels = true;
   let showOutlines = true;
+  let currentHeatmapData: any = null; // Store heatmap data persistently
 
   const basemaps = {
     osm: {
@@ -183,6 +184,9 @@
         }))
       };
 
+      // Store heatmap data persistently
+      currentHeatmapData = geojson;
+
       // Clear existing layers
       ['heatmap-cold', 'heatmap-medium', 'heatmap-hot'].forEach(layerId => {
         if (map.getLayer(layerId)) {
@@ -297,24 +301,26 @@
   // Calculate opacity based on percentiles for better visual distribution
   function calculateOpacityPercentile(frequency: number, threshold1: number, threshold2: number, threshold3: number, layer: 'hot' | 'medium'): number {
     if (layer === 'hot') {
-      // Yellow layer: only show for frequencies > 75th percentile
-      if (frequency <= threshold1) {
+      // Yellow layer: more generous - show for frequencies > 60th percentile (was 75th)
+      const hotThreshold = threshold1 * 0.8; // Lower threshold
+      if (frequency <= hotThreshold) {
         return 0;
       }
-      // Smooth transition from 75th percentile to max
-      const range = threshold3 - threshold1;
+      // Smooth transition from 60th percentile to max
+      const range = threshold3 - hotThreshold;
       if (range <= 0) return 0.8;
-      return Math.min(0.9, 0.2 + (frequency - threshold1) / range * 0.7);
+      return Math.min(0.9, 0.3 + (frequency - hotThreshold) / range * 0.6);
     } else {
-      // Red layer: show for frequencies > 50th percentile
-      if (frequency <= threshold1) {
+      // Red layer: more generous - show for frequencies > 30th percentile (was 50th)
+      const mediumThreshold = threshold1 * 0.6; // Much lower threshold
+      if (frequency <= mediumThreshold) {
         return 0;
       }
-      // Smooth transition from 50th to 75th percentile
-      const range = threshold2 - threshold1;
+      // Smooth transition from 30th to 60th percentile
+      const range = threshold1 - mediumThreshold;
       if (range <= 0) return 0.6;
-      const normalized = Math.min(1, (frequency - threshold1) / range);
-      return 0.2 + normalized * 0.5;
+      const normalized = Math.min(1, (frequency - mediumThreshold) / range);
+      return 0.3 + normalized * 0.4;
     }
   }
 
@@ -357,14 +363,11 @@
     });
     
     segmentCount = 0;
+    currentHeatmapData = null; // Clear stored data
   }
 
   function switchBasemap(basemapKey: string) {
     if (!map || currentBasemap === basemapKey) return;
-    
-    // Store current heatmap data
-    const heatmapSource = map.getSource('heatmap');
-    const heatmapData = heatmapSource ? (heatmapSource as maplibregl.GeoJSONSource)._data : null;
     
     currentBasemap = basemapKey;
     const newStyle = basemaps[basemapKey].style;
@@ -376,8 +379,8 @@
     
     // Re-add heatmap layers after style loads
     map.once('style.load', () => {
-      if (heatmapData) {
-        restoreHeatmapLayers(heatmapData);
+      if (currentHeatmapData) {
+        restoreHeatmapLayers(currentHeatmapData);
       }
     });
   }
@@ -565,8 +568,8 @@
         throw new Error('Map container not found');
       }
       
-      // Initialize WASM module with explicit path to WASM file
-      await init('/gpx_processor_bg.wasm');
+      // Initialize WASM module 
+      await init('/static/gpx_processor_bg.wasm');
       console.log('WASM initialized successfully');
 
       // Create map

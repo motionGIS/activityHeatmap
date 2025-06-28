@@ -139,6 +139,10 @@ function getDataViewMemory0() {
     return cachedDataViewMemory0;
 }
 
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
+
 const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true, fatal: true }) : { decode: () => { throw Error('TextDecoder not available') } } );
 
 if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
@@ -147,6 +151,26 @@ function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
 }
+/**
+ * @param {string} encoded
+ * @returns {any}
+ */
+export function decode_polyline_string(encoded) {
+    const ptr0 = passStringToWasm0(encoded, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.decode_polyline_string(ptr0, len0);
+    return ret;
+}
+
+/**
+ * @param {Array<any>} polylines
+ * @returns {any}
+ */
+export function process_polylines(polylines) {
+    const ret = wasm.process_polylines(polylines);
+    return ret;
+}
+
 /**
  * @param {Array<any>} files
  * @returns {any}
@@ -251,6 +275,14 @@ function __wbg_get_imports() {
     imports.wbg.__wbindgen_number_new = function(arg0) {
         const ret = arg0;
         return ret;
+    };
+    imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
+        const obj = arg1;
+        const ret = typeof(obj) === 'string' ? obj : undefined;
+        var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
     };
     imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
         const ret = getStringFromWasm0(arg0, arg1);

@@ -1,11 +1,15 @@
 /* tslint:disable */
 /* eslint-disable */
+export function decode_polyline_string(encoded: string): any;
+export function process_polylines(polylines: Array<any>): any;
 export function process_gpx_files(files: Array<any>): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly decode_polyline_string: (a: number, b: number) => any;
+  readonly process_polylines: (a: any) => any;
   readonly process_gpx_files: (a: any) => any;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

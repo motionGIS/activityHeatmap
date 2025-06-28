@@ -4,16 +4,188 @@ use std::io::Cursor;
 use serde::Serialize;
 use std::collections::HashMap;
 
+// Define the main data structures
 #[derive(Serialize)]
-struct HeatmapTrack {
+pub struct HeatmapTrack {
     coordinates: Vec<[f64; 2]>,
     frequency: u32,
 }
 
 #[derive(Serialize)]
-struct HeatmapResult {
+pub struct HeatmapResult {
     tracks: Vec<HeatmapTrack>,
     max_frequency: u32,
+}
+
+// Add a console log function for debugging
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console)]
+    fn log(s: &str);
+}
+
+// Function to decode Google polyline format
+pub fn decode_polyline(encoded: &str) -> Vec<[f64; 2]> {
+    let mut coords = Vec::new();
+    let mut lat = 0i32;
+    let mut lng = 0i32;
+    let mut index = 0;
+    let bytes = encoded.as_bytes();
+    
+    while index < bytes.len() {
+        // Decode latitude
+        let mut shift = 0;
+        let mut result = 0i32;
+        loop {
+            if index >= bytes.len() {
+                break;
+            }
+            let b = bytes[index] as i32 - 63;
+            index += 1;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+            if b < 0x20 {
+                break;
+            }
+        }
+        let dlat = if (result & 1) != 0 { !(result >> 1) } else { result >> 1 };
+        lat += dlat;
+        
+        // Decode longitude
+        shift = 0;
+        result = 0;
+        loop {
+            if index >= bytes.len() {
+                break;
+            }
+            let b = bytes[index] as i32 - 63;
+            index += 1;
+            result |= (b & 0x1f) << shift;
+            shift += 5;
+            if b < 0x20 {
+                break;
+            }
+        }
+        let dlng = if (result & 1) != 0 { !(result >> 1) } else { result >> 1 };
+        lng += dlng;
+        
+        // Convert to lat/lng and add to coordinates
+        let lat_f64 = lat as f64 * 1e-5;
+        let lng_f64 = lng as f64 * 1e-5;
+        
+        if is_valid_coordinate(lat_f64, lng_f64) {
+            coords.push([lat_f64, lng_f64]);
+        }
+    }
+    
+    coords
+}
+
+// Wasm-bindgen export for polyline decoding
+#[wasm_bindgen]
+pub fn decode_polyline_string(encoded: &str) -> JsValue {
+    let coords = decode_polyline(encoded);
+    serde_wasm_bindgen::to_value(&coords).unwrap()
+}
+
+// Process polyline strings
+fn process_polyline(polyline_str: &str) -> Vec<[f64; 2]> {
+    let coords = decode_polyline(polyline_str);
+    if !coords.is_empty() {
+        filter_unrealistic_jumps(&coords)
+    } else {
+        Vec::new()
+    }
+}
+
+// Add a function to process polylines from strings
+#[wasm_bindgen]
+pub fn process_polylines(polylines: js_sys::Array) -> JsValue {
+    let mut all_tracks: Vec<Vec<[f64; 2]>> = Vec::new();
+
+    // Process each polyline string
+    for i in 0..polylines.length() {
+        if let Some(polyline_str) = polylines.get(i).as_string() {
+            let coords = process_polyline(&polyline_str);
+            if coords.len() > 1 {
+                let simplified = simplify_track(&coords, 0.00005);
+                if simplified.len() > 1 {
+                    all_tracks.push(simplified);
+                }
+            }
+        }
+    }
+
+    // Apply the same processing logic as GPX files
+    let result = create_heatmap_from_tracks(all_tracks);
+    
+    serde_wasm_bindgen::to_value(&result).unwrap_or(JsValue::NULL)
+}
+
+// Helper function to create heatmap from coordinate arrays
+fn create_heatmap_from_tracks(all_tracks: Vec<Vec<[f64; 2]>>) -> HeatmapResult {
+    // Create a segment usage map to count overlapping segments
+    let mut segment_usage: HashMap<String, u32> = HashMap::new();
+    
+    // Break each track into segments and count usage
+    for track in &all_tracks {
+        for window in track.windows(2) {
+            if let [start, end] = window {
+                let segment_key = create_segment_key(*start, *end);
+                *segment_usage.entry(segment_key).or_insert(0) += 1;
+            }
+        }
+    }
+    
+    // Calculate frequency for each track based on its segments
+    let mut heatmap_tracks = Vec::new();
+    
+    for track in all_tracks {
+        if track.len() < 2 {
+            continue;
+        }
+        
+        // Calculate track frequency as the average frequency of its segments
+        let mut total_usage = 0;
+        let mut segment_count = 0;
+        
+        for window in track.windows(2) {
+            if let [start, end] = window {
+                let segment_key = create_segment_key(*start, *end);
+                if let Some(&usage) = segment_usage.get(&segment_key) {
+                    total_usage += usage;
+                    segment_count += 1;
+                }
+            }
+        }
+        
+        // Use average usage, with minimum of 1
+        let track_frequency = if segment_count > 0 {
+            (total_usage as f64 / segment_count as f64).round() as u32
+        } else {
+            1
+        };
+        
+        heatmap_tracks.push(HeatmapTrack {
+            coordinates: track,
+            frequency: track_frequency,
+        });
+    }
+    
+    // Find the maximum frequency for normalization
+    let max_frequency = heatmap_tracks.iter()
+        .map(|track| track.frequency)
+        .max()
+        .unwrap_or(1);
+    
+    HeatmapResult {
+        tracks: heatmap_tracks,
+        max_frequency,
+    }
+}
+
+fn round(value: f64) -> f64 {
+    (value * 100000.0).round() / 100000.0
 }
 
 #[wasm_bindgen]
@@ -190,10 +362,6 @@ fn distance(p1: [f64; 2], p2: [f64; 2]) -> f64 {
     (dx * dx + dy * dy).sqrt()
 }
 
-fn round(x: f64) -> f64 {
-    (x * 1e5).round() / 1e5
-}
-
 fn is_valid_coordinate(lat: f64, lon: f64) -> bool {
     // Check for valid latitude and longitude ranges
     if lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0 {
@@ -316,7 +484,7 @@ struct MessageDefinition {
 struct FieldDefinition {
     field_def_num: u8,
     size: u8,
-    base_type: u8,
+    _base_type: u8,
 }
 
 impl FitParser {
@@ -557,7 +725,7 @@ impl FitParser {
     }
 
     fn parse_definition_message(&mut self) -> Option<MessageDefinition> {
-        let start_pos = self.pos;
+        let _start_pos = self.pos;
         
         // Check we have enough bytes for the basic structure
         if self.pos + 5 > self.data.len() {
@@ -601,7 +769,7 @@ impl FitParser {
             fields.push(FieldDefinition {
                 field_def_num,
                 size,
-                base_type,
+                _base_type: base_type,
             });
         }
 

@@ -1,16 +1,24 @@
 [package]
-name = "gpx_processor"
+name = "heatmap-parse"
 version = "0.1.0"
 edition = "2021"
+description = "A robust GPS track processor for creating frequency-based route heatmaps from GPX, FIT, and polyline data"
+license = "MIT"
+repository = "https://github.com/motiongis/heatmap"
+authors = ["MotionGIS <info@motiongis.com>"]
+keywords = ["gps", "gpx", "fit", "heatmap", "polyline"]
+categories = ["wasm", "science", "visualization"]
+readme = "README.md"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 gpx = "0.10"
 wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+polyline = "0.10"
 js-sys = "0.3"
 serde-wasm-bindgen = "0.6"
 

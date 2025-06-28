@@ -1,7 +1,16 @@
 {
-  "name": "gpx_processor",
+  "name": "gpx-processor",
   "type": "module",
+  "collaborators": [
+    "MotionGIS <info@motiongis.com>"
+  ],
+  "description": "A robust GPS track processor for creating frequency-based route heatmaps from GPX, FIT, and polyline data",
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/motiongis/heatmap"
+  },
   "files": [
     "gpx_processor_bg.wasm",
     "gpx_processor.js",
@@ -11,5 +20,12 @@
   "types": "gpx_processor.d.ts",
   "sideEffects": [
     "./snippets/*"
+  ],
+  "keywords": [
+    "gps",
+    "gpx",
+    "fit",
+    "heatmap",
+    "polyline"
   ]
 }
