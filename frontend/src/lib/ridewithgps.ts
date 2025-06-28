@@ -2,7 +2,6 @@
 import { browser } from '$app/environment';
 
 const RWGPS_CLIENT_ID = import.meta.env.VITE_RWGPS_CLIENT_ID;
-const RWGPS_CLIENT_SECRET = import.meta.env.VITE_RWGPS_CLIENT_SECRET;
 
 // Helper function to get redirect URI (only works in browser)
 function getRedirectUri(): string {
@@ -60,22 +59,21 @@ export class RideWithGPSService {
   // Exchange authorization code for access token
   async exchangeCodeForToken(code: string): Promise<boolean> {
     try {
-      const response = await fetch('https://ridewithgps.com/oauth/token', {
+      // Use our server-side API route to avoid CORS issues
+      const response = await fetch('/api/rwgps-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          client_id: RWGPS_CLIENT_ID,
-          client_secret: RWGPS_CLIENT_SECRET,
           code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: getRedirectUri()
+          redirectUri: getRedirectUri()
         })
       });
 
       if (!response.ok) {
-        throw new Error(`Token exchange failed: ${response.statusText}`);
+        const errorData = await response.json();
+        throw new Error(`Token exchange failed: ${errorData.error || response.statusText}`);
       }
 
       const data = await response.json();
