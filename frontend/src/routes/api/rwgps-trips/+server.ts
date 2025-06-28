@@ -3,8 +3,12 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, request }) => {
   try {
-    const authorization = request.headers.get('authorization');
+    const authorization = request.headers.get('authorization') || request.headers.get('Authorization');
+    console.log('Authorization header:', authorization); // Debug log
+    console.log('All headers:', Object.fromEntries(request.headers.entries())); // Debug log
+    
     if (!authorization) {
+      console.log('Missing authorization header'); // Debug log
       return json({ error: 'Missing authorization header' }, { status: 401 });
     }
 
