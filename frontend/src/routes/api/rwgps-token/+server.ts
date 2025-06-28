@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { 
-  VITE_RWGPS_CLIENT_ID, 
-  VITE_RWGPS_CLIENT_SECRET 
+  RWGPS_CLIENT_ID, 
+  RWGPS_CLIENT_SECRET 
 } from '$env/static/private';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -21,8 +21,8 @@ export const POST: RequestHandler = async ({ request }) => {
       },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: VITE_RWGPS_CLIENT_ID,
-        client_secret: VITE_RWGPS_CLIENT_SECRET,
+        client_id: RWGPS_CLIENT_ID,
+        client_secret: RWGPS_CLIENT_SECRET,
         code: code,
         redirect_uri: redirectUri,
       }),

@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { 
-  VITE_STRAVA_CLIENT_ID, 
-  VITE_STRAVA_CLIENT_SECRET 
+  STRAVA_CLIENT_ID, 
+  STRAVA_CLIENT_SECRET 
 } from '$env/static/private';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -20,8 +20,8 @@ export const POST: RequestHandler = async ({ request }) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        client_id: VITE_STRAVA_CLIENT_ID,
-        client_secret: VITE_STRAVA_CLIENT_SECRET,
+        client_id: STRAVA_CLIENT_ID,
+        client_secret: STRAVA_CLIENT_SECRET,
         code: code,
         grant_type: 'authorization_code',
       }),
