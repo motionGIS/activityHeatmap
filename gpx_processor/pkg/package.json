@@ -26,5 +26,8 @@
     "gpx",
     "heatmap",
     "polyline"
-  ]
+  ],
+  "publishConfig": {
+    "@motiongis:registry": "https://npm.pkg.github.com"
+  }
 }
