@@ -1,20 +1,29 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ request }) => {
+export const GET: RequestHandler = async ({ url, request }) => {
   try {
-    const authorization = request.headers.get('authorization') || request.headers.get('Authorization');
-    console.log('Authorization header:', authorization); // Debug log
+    // Try to get token from query parameter first, then from authorization header
+    const tokenFromQuery = url.searchParams.get('token');
+    const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
     
-    if (!authorization) {
-      console.log('Missing authorization header'); // Debug log
-      return json({ error: 'Missing authorization header' }, { status: 401 });
+    let accessToken = tokenFromQuery;
+    if (!accessToken && authHeader) {
+      accessToken = authHeader.replace('Bearer ', '');
+    }
+    
+    console.log('Token from query:', tokenFromQuery); // Debug log
+    console.log('Auth header:', authHeader); // Debug log
+    
+    if (!accessToken) {
+      console.log('Missing access token'); // Debug log
+      return json({ error: 'Missing access token' }, { status: 401 });
     }
 
     // Make request to RideWithGPS API
     const response = await fetch('https://ridewithgps.com/users/current.json', {
       headers: {
-        'Authorization': authorization,
+        'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json',
         'User-Agent': 'ActivityHeatmap/1.0'
       }

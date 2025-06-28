@@ -118,10 +118,9 @@ export class RideWithGPSService {
     try {
       while (true) {
         const response = await fetch(
-          `/api/rwgps-trips?offset=${offset}&limit=${limit}&privacy=0`,
+          `/api/rwgps-trips?offset=${offset}&limit=${limit}&privacy=0&token=${encodeURIComponent(this.accessToken)}`,
           {
             headers: {
-              'Authorization': `Bearer ${this.accessToken}`,
               'Accept': 'application/json'
             }
           }
@@ -256,9 +255,8 @@ export class RideWithGPSService {
     }
 
     try {
-      const response = await fetch('/api/rwgps-user', {
+      const response = await fetch(`/api/rwgps-user?token=${encodeURIComponent(this.accessToken)}`, {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
           'Accept': 'application/json'
         }
       });
