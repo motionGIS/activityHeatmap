@@ -40,8 +40,20 @@ export const GET: RequestHandler = async ({ url, request }) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('RideWithGPS trips fetch failed:', errorText);
-      return json({ error: 'Failed to fetch trips' }, { status: response.status });
+      console.error('RideWithGPS trips fetch failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText,
+        url: `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}&privacy=${privacy}`
+      });
+      return json({ 
+        error: 'Failed to fetch trips', 
+        details: {
+          status: response.status,
+          statusText: response.statusText,
+          message: errorText
+        }
+      }, { status: response.status });
     }
 
     const data = await response.json();
