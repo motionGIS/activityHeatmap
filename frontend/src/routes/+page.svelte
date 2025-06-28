@@ -362,8 +362,15 @@
         return;
       }
 
-      // Extract polylines from trips
-      const polylines = ridewithgpsService.getPolylinesFromTrips(trips);
+      // Extract polylines from trips (now async because we need to fetch track data)
+      console.log('Extracting GPS data from trips...');
+      rwgpsImportProgress = 50;
+      
+      const polylines = await ridewithgpsService.getPolylinesFromTrips(trips, (processed, total) => {
+        // Update progress as we process each trip
+        const progressPercent = 50 + Math.floor((processed / total) * 25); // 50-75% range
+        rwgpsImportProgress = progressPercent;
+      });
       
       if (polylines.length === 0) {
         error = 'No GPS data found in your RideWithGPS trips';

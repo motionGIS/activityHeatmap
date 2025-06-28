@@ -214,17 +214,18 @@ export class RideWithGPSService {
   }
 
   // Extract polylines from trips
-  getPolylinesFromTrips(trips: RWGPSTrip[]): string[] {
+  async getPolylinesFromTrips(trips: RWGPSTrip[], onProgress?: (processed: number, total: number) => void): Promise<string[]> {
     const polylines: string[] = [];
     
     console.log('Sample trip data structure:', trips.length > 0 ? trips[0] : 'No trips');
     
-    for (const trip of trips) {
+    for (let i = 0; i < trips.length; i++) {
+      const trip = trips[i];
       console.log('Processing trip:', {
         id: trip.id,
         name: trip.name,
-        hasTrackEncoded: !!trip.track_encoded,
-        hasTrackPoints: !!(trip.track_points && trip.track_points.length > 0),
+        hasTrackId: !!(trip as any).track_id,
+        isGps: (trip as any).is_gps,
         allKeys: Object.keys(trip)
       });
       
@@ -239,17 +240,73 @@ export class RideWithGPSService {
         const coordinates = trip.track_points.map(point => [point.y, point.x]); // [lat, lng]
         polyline = JSON.stringify(coordinates);
         console.log('Using track_points for trip', trip.id, 'with', trip.track_points.length, 'points');
+      } else if ((trip as any).track_id && (trip as any).is_gps) {
+        // Fetch detailed track data using track_id
+        console.log('Fetching track data for trip', trip.id, 'with track_id', (trip as any).track_id);
+        try {
+          const trackData = await this.getTrackData((trip as any).track_id);
+          if (trackData) {
+            polyline = trackData;
+            console.log('Successfully fetched track data for trip', trip.id);
+          }
+        } catch (error) {
+          console.error('Failed to fetch track data for trip', trip.id, error);
+        }
+        // Add a small delay to be respectful to the API
+        await new Promise(resolve => setTimeout(resolve, 200));
       } else {
-        console.log('No GPS data found for trip', trip.id, 'Available fields:', Object.keys(trip));
+        console.log('No GPS data found for trip', trip.id, 'is_gps:', (trip as any).is_gps, 'track_id:', (trip as any).track_id);
       }
       
       if (polyline && polyline.length > 0) {
         polylines.push(polyline);
       }
+
+      // Call progress callback if provided
+      if (onProgress) {
+        onProgress(i + 1, trips.length);
+      }
     }
     
     console.log(`Extracted ${polylines.length} polylines from ${trips.length} trips`);
     return polylines;
+  }
+
+  // Fetch track data by track ID
+  async getTrackData(trackId: number): Promise<string | null> {
+    if (!this.accessToken) {
+      throw new Error('Not authenticated with RideWithGPS');
+    }
+
+    try {
+      const response = await fetch(
+        `/api/rwgps-track?id=${trackId}&token=${encodeURIComponent(this.accessToken)}`,
+        {
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.error('Failed to fetch track data:', response.status, response.statusText);
+        return null;
+      }
+
+      const data = await response.json();
+      
+      if (data.track_points && data.track_points.length > 0) {
+        const coordinates = data.track_points.map((point: any) => [point.y, point.x]);
+        return JSON.stringify(coordinates);
+      } else if (data.track_encoded) {
+        return data.track_encoded;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error fetching track data:', error);
+      return null;
+    }
   }
 
   // Logout and clear stored tokens
