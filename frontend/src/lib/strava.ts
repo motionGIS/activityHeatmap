@@ -117,7 +117,7 @@ export class StravaService {
     try {
       while (true) {
         const response = await fetch(
-          `https://www.strava.com/api/v3/athlete/activities?page=${page}&per_page=${perPage}`,
+          `/api/strava-activities?page=${page}&per_page=${perPage}`,
           {
             headers: {
               'Authorization': `Bearer ${this.accessToken}`

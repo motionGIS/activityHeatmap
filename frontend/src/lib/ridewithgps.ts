@@ -118,7 +118,7 @@ export class RideWithGPSService {
     try {
       while (true) {
         const response = await fetch(
-          `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}&privacy=0`,
+          `/api/rwgps-trips?offset=${offset}&limit=${limit}&privacy=0`,
           {
             headers: {
               'Authorization': `Bearer ${this.accessToken}`,
@@ -256,7 +256,7 @@ export class RideWithGPSService {
     }
 
     try {
-      const response = await fetch('https://ridewithgps.com/users/current.json', {
+      const response = await fetch('/api/rwgps-user', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
           'Accept': 'application/json'
