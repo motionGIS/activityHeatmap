@@ -1,6 +1,6 @@
 [package]
 name = "heatmap-parse"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 description = "A robust GPS track processor for creating frequency-based route heatmaps from GPX, FIT, and polyline data"
 license = "MIT"

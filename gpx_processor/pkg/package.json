@@ -1,15 +1,15 @@
 {
-  "name": "@motiongis/heatmap-parse",
+  "name": "heatmap-parse",
   "type": "module",
   "collaborators": [
-    "MotionGIS <hi@motiongis.com>"
+    "MotionGIS <info@motiongis.com>"
   ],
   "description": "A robust GPS track processor for creating frequency-based route heatmaps from GPX, FIT, and polyline data",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/motionGIS/activityHeatmap"
+    "url": "https://github.com/motiongis/heatmap"
   },
   "files": [
     "heatmap_parse_bg.wasm",
