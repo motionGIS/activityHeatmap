@@ -25,41 +25,57 @@ export const GET: RequestHandler = async ({ url, request }) => {
     const offset = url.searchParams.get('offset') || '0';
     const limit = url.searchParams.get('limit') || '100';
     
-    // Build URL without privacy parameter first to test
-    const apiUrl = `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}`;
+    // Try different API endpoints that might work for RideWithGPS
+    const endpoints = [
+      `https://ridewithgps.com/trips.json?offset=${offset}&limit=${limit}`,
+      `https://ridewithgps.com/api/v1/trips.json?offset=${offset}&limit=${limit}`,
+      `https://ridewithgps.com/users/current/trips.json?offset=${offset}&limit=${limit}`
+    ];
     
-    console.log('Making request to:', apiUrl);
-    console.log('With access token:', accessToken ? 'present' : 'missing');
+    console.log('Testing access token:', accessToken ? 'present' : 'missing');
 
-    // Make request to RideWithGPS API
-    const response = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/json',
-        'User-Agent': 'ActivityHeatmap/1.0'
-      }
-    });
+    // Try each endpoint until one works
+    for (let i = 0; i < endpoints.length; i++) {
+      const apiUrl = endpoints[i];
+      console.log(`Trying endpoint ${i + 1}:`, apiUrl);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('RideWithGPS trips fetch failed:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText: errorText,
-        url: apiUrl
+      const response = await fetch(apiUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
+          'User-Agent': 'ActivityHeatmap/1.0'
+        }
       });
-      return json({ 
-        error: 'Failed to fetch trips', 
-        details: {
+
+      if (response.ok) {
+        console.log(`Success with endpoint ${i + 1}`);
+        const data = await response.json();
+        return json(data);
+      } else {
+        const errorText = await response.text();
+        console.log(`Endpoint ${i + 1} failed:`, {
           status: response.status,
           statusText: response.statusText,
-          message: errorText
+          errorText: errorText
+        });
+        
+        // If this is the last endpoint, return the error
+        if (i === endpoints.length - 1) {
+          return json({ 
+            error: 'Failed to fetch trips from all endpoints', 
+            details: {
+              status: response.status,
+              statusText: response.statusText,
+              message: errorText,
+              lastEndpoint: apiUrl
+            }
+          }, { status: response.status });
         }
-      }, { status: response.status });
+      }
     }
-
-    const data = await response.json();
-    return json(data);
+    
+    // This should never be reached, but just in case
+    return json({ error: 'All endpoints failed' }, { status: 500 });
   } catch (error) {
     console.error('Error in RideWithGPS trips proxy:', error);
     return json({ error: 'Internal server error' }, { status: 500 });
