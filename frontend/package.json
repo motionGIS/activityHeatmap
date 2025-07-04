@@ -49,7 +49,17 @@
 		]
 	},
 	"dependencies": {
+		"@mapbox-controls/ruler": "^3.0.0",
 		"@motiongis/heatmap-parse": "^0.1.0",
-		"maplibre-gl": "^5.6.0"
+		"@turf/distance": "^7.2.0",
+		"@turf/helpers": "^7.2.0",
+		"@turf/turf": "^7.2.0",
+		"@watergis/maplibre-gl-export": "^4.0.1",
+		"@watergis/svelte-maplibre-measure": "^3.0.1",
+		"@watergis/svelte-maplibre-style-switcher": "^4.0.1",
+		"@watergis/terrain-rgb": "1.2.0",
+		"maplibre-gl": "^5.6.0",
+		"svelte-loading-spinners": "^0.3.6",
+		"svelte-maplibre": "^1.2.0"
 	}
 }
