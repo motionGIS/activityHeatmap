@@ -9,6 +9,14 @@
 
   // Custom Ruler Control for MapLibre
   class RulerControl {
+	_map: null;
+	_container: null;
+	_button: null;
+	_isActive: boolean;
+	_points: never[];
+	_lineSource: null;
+	_pointSource: null;
+	_distanceLabels: never[];
     constructor() {
       this._map = null;
       this._container = null;
@@ -20,7 +28,7 @@
       this._distanceLabels = [];
     }
 
-    onAdd(map) {
+    onAdd(map: null) {
       this._map = map;
       this._container = document.createElement('div');
       this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group ruler-control';
@@ -140,7 +148,7 @@
       this._map.fire('ruler.off');
     }
 
-    _onClick = (e) => {
+    _onClick = (e: { lngLat: { lng: any; lat: any; }; }) => {
       if (!this._isActive) return;
       
       const point = [e.lngLat.lng, e.lngLat.lat];
@@ -149,7 +157,7 @@
       this._updateDisplay();
     }
 
-    _onDoubleClick = (e) => {
+    _onDoubleClick = (e: { preventDefault: () => void; }) => {
       if (!this._isActive) return;
       e.preventDefault();
       
