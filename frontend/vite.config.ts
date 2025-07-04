@@ -8,19 +8,11 @@ export default defineConfig({
 		exclude: ['gpx_processor'],
 		include: [
 			'maplibre-gl',
-			'@watergis/terrain-rgb',
-			'@watergis/svelte-maplibre-measure',
-			'@watergis/svelte-maplibre-style-switcher',
-			'@watergis/maplibre-gl-export',
 			'svelte-maplibre'
 		]
 	},
 	ssr: {
 		noExternal: [
-			'@watergis/terrain-rgb',
-			'@watergis/svelte-maplibre-measure',
-			'@watergis/svelte-maplibre-style-switcher',
-			'@watergis/maplibre-gl-export'
 		]
 	},
 	server: {
@@ -30,23 +22,15 @@ export default defineConfig({
 	},
 	build: {
 		rollupOptions: {
-			external: [],
+			external: ['zlib', 'fs', 'path', 'stream', 'util'],
 			output: {
-				manualChunks: {
-					'watergis': [
-						'@watergis/terrain-rgb',
-						'@watergis/svelte-maplibre-measure',
-						'@watergis/svelte-maplibre-style-switcher',
-						'@watergis/maplibre-gl-export'
-					]
-				}
+				manualChunks: undefined
 			}
 		},
 		commonjsOptions: {
 			include: [
 				/node_modules/,
 				/maplibre-gl/,
-				/@watergis/
 			],
 			transformMixedEsModules: true
 		}
