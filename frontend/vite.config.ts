@@ -21,10 +21,6 @@ export default defineConfig({
 			'@watergis/svelte-maplibre-measure',
 			'@watergis/svelte-maplibre-style-switcher',
 			'@watergis/maplibre-gl-export'
-		],
-		external: [
-			'maplibre-gl',
-			'svelte-maplibre'
 		]
 	},
 	server: {
@@ -37,7 +33,6 @@ export default defineConfig({
 			external: [],
 			output: {
 				manualChunks: {
-					'maplibre': ['maplibre-gl'],
 					'watergis': [
 						'@watergis/terrain-rgb',
 						'@watergis/svelte-maplibre-measure',
