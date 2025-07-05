@@ -322,6 +322,13 @@
   let currentBasemap = 'white';
   let currentHeatmapData: any = null; // Store heatmap data persistently
 
+  // Global heatmap color constants
+  const HEATMAP_COLORS = {
+    COLD: '#471894',    // Purple - low intensity
+    MEDIUM: '#e03400',  // Orange - medium intensity
+    HOT: '#ffe600'      // Yellow - high intensity
+  } as const;
+
   // Strava-related state
   let isStravaAuthenticated = false;
   let stravaAthlete: any = null;
@@ -412,30 +419,6 @@
         ]
       }
     },
-    basic: {
-      name: 'Basic',
-      styleUrl: '/static/map_styles/basic.json'
-    },
-    topo: {
-      name: 'Topographic',
-      styleUrl: '/static/map_styles/topo.json'
-    },
-    satellite: {
-      name: 'Satellite',
-      styleUrl: '/static/map_styles/satellite.json'
-    },
-    datavis: {
-      name: 'Illustrated',
-      styleUrl: '/static/map_styles/datavis.json'
-    },
-    landscape: {
-      name: 'Atlas',
-      styleUrl: '/static/map_styles/landscape.json'
-    },
-    winter: {
-      name: 'Winter',
-      styleUrl: '/static/map_styles/winter.json'
-    }
   };
 
   async function handleFiles(event: Event) {
@@ -777,7 +760,7 @@
       type: 'line',
       source: 'heatmap',
       paint: {
-        'line-color': '#471894', // Purple
+        'line-color': HEATMAP_COLORS.COLD,
         'line-width': [
           'interpolate', 
           ['linear'], 
@@ -801,7 +784,7 @@
       type: 'line',
       source: 'heatmap',
       paint: {
-        'line-color': '#e03400', // Orange
+        'line-color': HEATMAP_COLORS.MEDIUM,
         'line-width': [
           'interpolate', 
           ['linear'], 
@@ -825,7 +808,7 @@
       type: 'line',
       source: 'heatmap',
       paint: {
-        'line-color': '#ffe600', // Yellow
+        'line-color': HEATMAP_COLORS.HOT,
         'line-width': [
           'interpolate', 
           ['linear'], 
@@ -1034,14 +1017,14 @@
           type: 'line',
           source: 'heatmap',
           paint: {
-            'line-color': '#8B5CF6', // Purple
+            'line-color': HEATMAP_COLORS.COLD,
             'line-width': [
               'interpolate', 
               ['linear'], 
               ['zoom'],
               1, 2, 5, 3, 10, 4, 15, 6
             ],
-            'line-opacity': 0.6
+            'line-opacity': 0.7
           },
           layout: {
             'line-join': 'round',
@@ -1054,7 +1037,7 @@
           type: 'line',
           source: 'heatmap',
           paint: {
-            'line-color': '#F97316', // Orange
+            'line-color': HEATMAP_COLORS.MEDIUM,
             'line-width': [
               'interpolate', 
               ['linear'], 
@@ -1074,7 +1057,7 @@
           type: 'line',
           source: 'heatmap',
           paint: {
-            'line-color': '#EAB308', // Yellow
+            'line-color': HEATMAP_COLORS.HOT,
             'line-width': [
               'interpolate', 
               ['linear'], 
@@ -1129,7 +1112,7 @@
                 ['zoom'],
                 1, 2, 5, 3, 10, 4, 15, 6
               ],
-              'line-opacity': 0.6
+              'line-opacity': 0.7
             },
             layout: {
               'line-join': 'round',
