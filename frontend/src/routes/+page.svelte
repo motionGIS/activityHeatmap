@@ -321,6 +321,7 @@
   let segmentCount = 0;
   let currentBasemap = 'white';
   let currentHeatmapData: any = null; // Store heatmap data persistently
+  let layerSwitcherSelect: HTMLSelectElement; // Reference to layer switcher dropdown
 
   // Global heatmap color constants
   const HEATMAP_COLORS = {
@@ -956,6 +957,13 @@
     }
   }
 
+  // Function to update the layer switcher dropdown
+  function updateLayerSwitcherDropdown() {
+    if (layerSwitcherSelect) {
+      layerSwitcherSelect.value = currentBasemap;
+    }
+  }
+
   async function switchBasemap(basemapKey: string) {
     if (!map || currentBasemap === basemapKey) return;
     
@@ -1077,14 +1085,15 @@
       
       // Apply the style with heatmap layers already included
       map.setStyle(style);
-      currentBasemap = basemapKey;
       
       // Re-add custom attribution after style change
       map.once('styledata', () => {
         addCustomAttribution();
+        // Only update currentBasemap after style is successfully loaded
+        currentBasemap = basemapKey;
+        updateLayerSwitcherDropdown(); // Update dropdown to reflect change
+        console.log('Basemap switched successfully to:', basemapKey);
       });
-      
-      console.log('Basemap switched successfully with preserved heatmap');
       
     } catch (error) {
       console.error('Error switching basemap:', error);
@@ -1162,11 +1171,14 @@
         }
         
         map.setStyle(osmStyle);
-        currentBasemap = 'osm';
         
         // Re-add custom attribution after fallback style change
         map.once('styledata', () => {
           addCustomAttribution();
+          // Only update currentBasemap after fallback style is successfully loaded
+          currentBasemap = 'osm';
+          updateLayerSwitcherDropdown(); // Update dropdown to reflect fallback
+          console.log('Fallback to OSM completed');
         });
       }
     }
@@ -1445,6 +1457,7 @@
       });
       
       // Add layer switcher control (vanilla HTML dropdown)
+      let layerSwitcherSelect: HTMLSelectElement;
       const layerSwitcher = {
         onAdd: function(map: maplibregl.Map) {
           this._map = map;
@@ -1455,6 +1468,7 @@
           const select = document.createElement('select');
           select.className = 'layer-switcher-select';
           select.setAttribute('aria-label', 'Choose basemap layer');
+          layerSwitcherSelect = select; // Store reference for updates
           
           // Add options
           Object.entries(basemaps).forEach(([key, basemap]) => {
